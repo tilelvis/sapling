@@ -1,20 +1,23 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  GraduationCap, TrendingUp, TrendingDown, Wallet, PiggyBank, Receipt, BarChart3, Download, Award,
+  GraduationCap, TrendingUp, TrendingDown, Wallet, PiggyBank, Receipt, BarChart3, Download,
+  ChevronLeft, ChevronRight, X,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatKsh, formatKshShort, MONTH_NAMES_FULL } from "@/lib/planner/engine";
 import type { ProjectionBundle } from "./hooks";
-import { YearlyReviewCard } from "./yearly-review-card";
+import type { YearSummary } from "@/lib/planner/types";
 import { MetricStrip, type Metric } from "./metric-strip";
 import { projectionToCsv, downloadCsv } from "@/lib/planner/csv";
 
 export function FeePlanView({ bundle }: { bundle: ProjectionBundle }) {
   const { settings, projection } = bundle;
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   const totalTuition = settings.tuitionPerYear * 4;
   const totalHelb = settings.helbY1 + settings.helbY2 + settings.helbY3 + settings.helbY4;
@@ -22,11 +25,10 @@ export function FeePlanView({ bundle }: { bundle: ProjectionBundle }) {
 
   const handleExport = () => {
     const csv = projectionToCsv(projection, settings);
-    const date = new Date().toISOString().slice(0, 10);
-    downloadCsv(csv, `forestry-tuition-plan-${date}.csv`);
+    downloadCsv(csv, `forestry-tuition-plan-${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
-  // Compact metric strip — no cards, just plain metrics with dividers
+  // Compact metric strips — no cards
   const topMetrics: Metric[] = [
     {
       label: "Tuition/yr",
@@ -51,7 +53,6 @@ export function FeePlanView({ bundle }: { bundle: ProjectionBundle }) {
     },
   ];
 
-  // Savings breakdown strip
   const savingsMetrics: Metric[] = [
     {
       label: "You'll save",
@@ -72,6 +73,8 @@ export function FeePlanView({ bundle }: { bundle: ProjectionBundle }) {
     },
   ];
 
+  const feeMonths = projection.months.filter((m) => m.isFeeMonth);
+
   return (
     <div className="space-y-3 slide-up-fade">
       {/* Header — compact, no card */}
@@ -83,174 +86,248 @@ export function FeePlanView({ bundle }: { bundle: ProjectionBundle }) {
         </span>
       </div>
 
-      {/* Top metric strip — tuition / HELB / graduation */}
+      {/* Top metric strip */}
       <MetricStrip metrics={topMetrics} />
 
-      {/* Savings breakdown strip — saved / interest / start */}
+      {/* Savings breakdown strip */}
       <MetricStrip metrics={savingsMetrics} />
 
-      {/* Chart note — compact, no card */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] text-muted-foreground">
+      {/* Chart note */}
+      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-muted-foreground">
         <BarChart3 className="h-3 w-3 shrink-0" />
-        <span>Annual chart: Home tab → Charts → "Annual"</span>
+        <span>Annual chart: Home → Charts → "Annual"</span>
       </div>
 
-      {/* Yearly review (year-over-year progress) */}
-      <YearlyReviewCard years={projection.years} />
-
-      {/* Year cards */}
-      <div className="space-y-3">
-        {projection.years.map((y) => {
-          const credit = y.helb > y.tuition;
-          const fundingNeeded = y.studentFunding;
-          return (
-            <Card
-              key={y.year}
-              className={cn(
-                "p-4 card-shadow border-l-4",
-                y.endBalance < 0 ? "border-l-destructive" : "border-l-primary",
-              )}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Academic Year</p>
-                  <h3 className="text-lg font-bold">Year {y.year}</h3>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">MMF at year end</p>
-                  <p
-                    className={cn(
-                      "text-lg font-bold tnum",
-                      y.endBalance < 0 ? "text-destructive" : "text-foreground",
-                    )}
-                  >
-                    {formatKsh(y.endBalance)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <Row
-                  icon={<GraduationCap className="h-3.5 w-3.5" />}
-                  label="Tuition"
-                  value={formatKshShort(y.tuition)}
-                />
-                <Row
-                  icon={<PiggyBank className="h-3.5 w-3.5" />}
-                  label="HELB"
-                  value={formatKshShort(y.helb)}
-                  tone={credit ? "primary" : "neutral"}
-                />
-                <Row
-                  icon={<Wallet className="h-3.5 w-3.5" />}
-                  label="You fund"
-                  value={formatKshShort(Math.max(0, fundingNeeded))}
-                  tone={fundingNeeded > 0 ? "destructive" : "primary"}
-                />
-                <Row
-                  icon={<TrendingUp className="h-3.5 w-3.5" />}
-                  label="Saved"
-                  value={formatKshShort(y.totalContributions)}
-                  tone="primary"
-                />
-                <Row
-                  icon={<TrendingUp className="h-3.5 w-3.5" />}
-                  label="Interest"
-                  value={formatKshShort(Math.round(y.totalInterest))}
-                  tone="accent"
-                />
-                <Row
-                  icon={<TrendingDown className="h-3.5 w-3.5" />}
-                  label="Fees out"
-                  value={formatKshShort(y.totalWithdrawn)}
-                  tone="destructive"
-                />
-              </div>
-
-              {/* Status line */}
-              <div className="mt-3 pt-3 border-t border-border/60">
-                {credit ? (
-                  <p className="text-xs text-primary">
-                    HELB fully covers this year — surplus of {formatKsh(y.helb - y.tuition)} stays in your MMF.
-                  </p>
-                ) : fundingNeeded === 0 ? (
-                  <p className="text-xs text-primary">HELB covers tuition exactly this year.</p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    You need to cover{" "}
-                    <strong className="text-foreground">{formatKsh(fundingNeeded)}</strong>{" "}
-                    from your MMF savings this year.
-                  </p>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Fee dates reference */}
-      <Card className="p-4 card-shadow">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-            <Receipt className="h-4 w-4" />
-          </div>
-          <h3 className="text-sm font-semibold">When fees are due</h3>
-        </div>
-        <p className="text-xs text-muted-foreground mb-3">
-          These are the months money leaves your MMF for tuition.
+      {/* YEARS — flat strip with dividers, tap to open carousel popup */}
+      <div className="border-y border-border/60">
+        <p className="text-[9px] uppercase tracking-wide text-muted-foreground px-2 pt-2 pb-1 font-medium">
+          Academic years · tap for details
         </p>
-        <div className="space-y-1.5">
-          {projection.months.filter((m) => m.isFeeMonth).map((m) => (
-            <div
-              key={m.monthIndex}
-              className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">
+        <div className="grid grid-cols-4 divide-x divide-border/60">
+          {projection.years.map((y) => {
+            const fundingNeeded = Math.max(0, y.studentFunding);
+            const funded = y.totalContributions >= fundingNeeded && fundingNeeded > 0;
+            const credit = y.helb > y.tuition;
+            return (
+              <button
+                key={y.year}
+                onClick={() => setSelectedYear(y.year - 1)}
+                className="px-1.5 py-2 text-center active:bg-muted/40 transition-colors"
+              >
+                <p className="text-[9px] text-muted-foreground leading-none">Year</p>
+                <p className="text-base font-bold leading-none mt-0.5">{y.year}</p>
+                <p className={cn(
+                  "text-[10px] font-semibold tnum mt-1 leading-none",
+                  y.endBalance < 0 ? "text-destructive" : "text-foreground",
+                )}>
+                  {formatKshShort(y.endBalance)}
+                </p>
+                <div className="flex items-center justify-center gap-0.5 mt-1">
+                  {credit ? (
+                    <span className="text-[8px] text-primary">surplus</span>
+                  ) : funded ? (
+                    <span className="text-[8px] text-primary">funded</span>
+                  ) : (
+                    <span className="text-[8px] text-destructive">gap</span>
+                  )}
+                </div>
+                {/* Mini funding bar */}
+                <div className="h-0.5 rounded-full bg-muted mt-1 overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full", funded ? "bg-primary" : "bg-destructive")}
+                    style={{
+                      width: `${Math.min(100, fundingNeeded > 0 ? (y.totalContributions / fundingNeeded) * 100 : 100)}%`,
+                    }}
+                  />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* FEE DATES — flat list with dividers, no cards */}
+      <div className="border-b border-border/60">
+        <p className="text-[9px] uppercase tracking-wide text-muted-foreground px-2 pt-2 pb-1 font-medium">
+          When fees are due
+        </p>
+        <div className="divide-y divide-border/40">
+          {feeMonths.map((m) => (
+            <div key={m.monthIndex} className="flex items-center justify-between px-2 py-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium truncate leading-tight">
                   {MONTH_NAMES_FULL[m.calendarMonth]} {m.calendarYear}
                 </p>
-                <p className="text-[10px] text-muted-foreground truncate">
+                <p className="text-[9px] text-muted-foreground truncate leading-tight">
                   Year {m.year} · {m.feeLabel}
                 </p>
               </div>
-              <Badge variant="outline" className="text-destructive border-destructive/30 tnum bg-destructive/5 shrink-0">
-                {formatKshShort(m.withdrawal)}
-              </Badge>
+              <span className="text-[11px] font-bold tnum text-destructive shrink-0 ml-2">
+                −{formatKshShort(m.withdrawal)}
+              </span>
             </div>
           ))}
         </div>
-      </Card>
+      </div>
 
-      {/* Export button */}
-      <Button variant="outline" className="w-full card-shadow" onClick={handleExport}>
-        <Download className="h-4 w-4 mr-2" />
-        Export full plan to CSV
+      {/* Export */}
+      <Button variant="outline" size="sm" className="w-full" onClick={handleExport}>
+        <Download className="h-3.5 w-3.5 mr-1.5" />
+        Export to CSV
       </Button>
+
+      {/* Year carousel popup */}
+      <YearCarouselDialog
+        years={projection.years}
+        open={selectedYear !== null}
+        onOpenChange={(b) => !b && setSelectedYear(null)}
+        initialYear={selectedYear ?? 0}
+      />
     </div>
   );
 }
 
-function Row({
-  icon, label, value, tone = "neutral",
+// === Year Carousel Dialog ===
+function YearCarouselDialog({
+  years, open, onOpenChange, initialYear,
+}: {
+  years: YearSummary[];
+  open: boolean;
+  onOpenChange: (b: boolean) => void;
+  initialYear: number;
+}) {
+  const [currentIdx, setCurrentIdx] = useState(initialYear);
+
+  // Sync when opened
+  useState(() => {
+    if (open) setCurrentIdx(initialYear);
+  });
+
+  if (!open || years.length === 0) return null;
+
+  const year = years[currentIdx];
+  if (!year) return null;
+
+  const goNext = () => setCurrentIdx((i) => Math.min(years.length - 1, i + 1));
+  const goPrev = () => setCurrentIdx((i) => Math.max(0, i - 1));
+  const credit = year.helb > year.tuition;
+  const fundingNeeded = Math.max(0, year.studentFunding);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "oklch(0.18 0.02 150 / 0.5)" }} onClick={() => onOpenChange(false)}>
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="relative bg-card rounded-2xl card-shadow-lg w-full max-w-sm overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header with carousel nav */}
+        <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/60 bg-muted/30">
+          <button
+            onClick={goPrev}
+            disabled={currentIdx === 0}
+            className={cn("flex h-7 w-7 items-center justify-center rounded-lg transition-colors", currentIdx === 0 ? "text-muted-foreground/30" : "text-foreground hover:bg-muted/50 active:scale-90")}
+            aria-label="Previous year"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="text-center">
+            <p className="text-xs font-semibold">Year {year.year}</p>
+            <p className="text-[9px] text-muted-foreground">{currentIdx + 1} of {years.length}</p>
+          </div>
+          <button
+            onClick={goNext}
+            disabled={currentIdx === years.length - 1}
+            className={cn("flex h-7 w-7 items-center justify-center rounded-lg transition-colors", currentIdx === years.length - 1 ? "text-muted-foreground/30" : "text-foreground hover:bg-muted/50 active:scale-90")}
+            aria-label="Next year"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Close button */}
+        <button
+          onClick={() => onOpenChange(false)}
+          className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 active:scale-90 transition-all"
+          aria-label="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        {/* Year content — flat dividers, no cards */}
+        <div className="p-4 space-y-3">
+          {/* End balance — big number */}
+          <div className="text-center pb-3 border-b border-border/60">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">MMF at year end</p>
+            <p className={cn("text-2xl font-bold tnum mt-1", year.endBalance < 0 ? "text-destructive" : "text-primary")}>
+              {formatKsh(year.endBalance)}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {year.startBalance >= 0 ? formatKshShort(year.startBalance) : "—"} → {formatKshShort(year.endBalance)}
+              <span className={cn("ml-1 font-medium", year.netChange >= 0 ? "text-primary" : "text-destructive")}>
+                ({year.netChange >= 0 ? "+" : ""}{formatKshShort(Math.round(year.netChange))})
+              </span>
+            </p>
+          </div>
+
+          {/* Flat metric rows with dividers */}
+          <div className="divide-y divide-border/40">
+            <FlatRow icon={<GraduationCap className="h-3 w-3" />} label="Tuition" value={formatKsh(year.tuition)} />
+            <FlatRow icon={<PiggyBank className="h-3 w-3" />} label="HELB" value={formatKsh(year.helb)} tone={credit ? "primary" : undefined} />
+            <FlatRow icon={<Wallet className="h-3 w-3" />} label="You fund" value={formatKsh(fundingNeeded)} tone={fundingNeeded > 0 ? "destructive" : "primary"} />
+            <FlatRow icon={<TrendingUp className="h-3 w-3" />} label="Saved" value={formatKsh(Math.round(year.totalContributions))} tone="primary" />
+            <FlatRow icon={<TrendingUp className="h-3 w-3" />} label="Interest" value={formatKsh(Math.round(year.totalInterest))} tone="accent" />
+            <FlatRow icon={<TrendingDown className="h-3 w-3" />} label="Fees out" value={formatKsh(year.totalWithdrawn)} tone="destructive" />
+          </div>
+
+          {/* Status line */}
+          <div className="pt-2 border-t border-border/60">
+            {credit ? (
+              <p className="text-[11px] text-primary text-center">
+                HELB fully covers — surplus {formatKsh(year.helb - year.tuition)} stays in MMF
+              </p>
+            ) : fundingNeeded === 0 ? (
+              <p className="text-[11px] text-primary text-center">HELB covers tuition exactly</p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground text-center">
+                You need to cover <strong className="text-foreground">{formatKsh(fundingNeeded)}</strong> from MMF savings
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Swipe hint */}
+        <div className="px-4 pb-3 flex items-center justify-center gap-1 text-[9px] text-muted-foreground">
+          <ChevronLeft className="h-2.5 w-2.5" />
+          <span>Swipe or tap arrows to navigate years</span>
+          <ChevronRight className="h-2.5 w-2.5" />
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function FlatRow({
+  icon, label, value, tone,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  tone?: "neutral" | "primary" | "destructive" | "accent";
+  tone?: "primary" | "destructive" | "accent";
 }) {
   const toneCls = {
-    neutral: "text-foreground",
     primary: "text-primary",
     destructive: "text-destructive",
     accent: "text-chart-3",
-  }[tone];
+  }[tone ?? ""] ?? "text-foreground";
   return (
-    <div className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1.5 gap-1.5">
-      <span className="flex items-center gap-1.5 text-muted-foreground min-w-0">
+    <div className="flex items-center justify-between py-2">
+      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
         <span className="shrink-0">{icon}</span>
-        <span className="truncate">{label}</span>
+        {label}
       </span>
-      <span className={cn("tnum font-medium shrink-0 whitespace-nowrap", toneCls)}>{value}</span>
+      <span className={cn("text-[11px] font-semibold tnum", toneCls)}>{value}</span>
     </div>
   );
 }
