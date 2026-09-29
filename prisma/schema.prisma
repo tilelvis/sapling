@@ -1,0 +1,63 @@
+// Forestry Degree Financial Planner — Prisma schema
+// SQLite local database. Single-user offline-first planner.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Editable planning assumptions. Singleton (id = 1).
+model Settings {
+  id                  Int     @id @default(1)
+  tuitionPerYear      Int     @default(160000)
+  startingMMF         Int     @default(60000)
+  monthlySaving       Int     @default(5000)
+  mmfAnnualReturn     Float   @default(0.12)
+  helbY1              Int     @default(120000)
+  helbY2              Int     @default(60000)
+  helbY3              Int     @default(30000)
+  helbY4              Int     @default(0)
+  academicStartMonth  Int     @default(8) // 0-indexed: 8 = September
+  academicStartYear   Int     @default(2026)
+  studentName         String  @default("Forestry Student")
+  onboarded           Boolean @default(false)
+  updatedAt           DateTime @updatedAt
+}
+
+/// Scheduled fee withdrawals from the MMF across the 4-year plan.
+/// `monthIndex` is 0-47 relative to academic start.
+model FeeSchedule {
+  id          Int    @id @default(autoincrement())
+  monthIndex  Int    // 0-47
+  amount      Int    // Ksh withdrawn this month
+  label       String // e.g. "Y2 September fee"
+  @@unique([monthIndex])
+}
+
+/// Actual recorded transactions per month (for plan-vs-actual tracking).
+model ActualTransaction {
+  id                   Int       @id @default(autoincrement())
+  monthIndex           Int       @unique
+  actualSaving         Int?
+  actualInterest       Int?
+  actualWithdrawal     Int?
+  actualEndingBalance  Int?
+  completedAt          DateTime?
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+/// History of monthly saving changes (audit trail for the saving-history chart).
+/// A new row is appended every time the user changes their monthly saving.
+model SavingHistory {
+  id            Int      @id @default(autoincrement())
+  monthlySaving Int
+  mmfReturn     Float
+  changedAt     DateTime @default(now())
+  note          String?
+}
