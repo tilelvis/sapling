@@ -1,12 +1,12 @@
 // Forestry Degree Financial Planner — Prisma schema
-// SQLite local database. Single-user offline-first planner.
+// Neon PostgreSQL provides the production database for the planner.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
